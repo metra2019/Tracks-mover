@@ -1,4 +1,4 @@
-     //_____radio module___________
+//_____radio module___________
 #include <SPI.h>
 #include <nRF24L01.h>
 #include <RF24.h>
@@ -9,31 +9,25 @@
 const uint64_t pipe = 0xF0F1F2F3F4L ;  //id
 RF24 radio(RADIO_CE, RADIO_SCN); //initialization
 
-//____motors____
-#define LIMIT_SPEED 10
-#include <L298NX2.h>
+//______recieve_____
+const int s = 2;
+byte data [s] = {};
+int spR, spL;
 
-//motor A - Right
-#define EN_A 7
-#define IN1_A 6
-#define IN2_A 5
-int spR = 0; //сurrent speed of motor (0-225) - PWM range values
+//______motors______
+int enr = 4;
+int in1 = 3;
+int in2 = 2;
 
-//motor B - Left
-#define IN1_B  3
-#define IN2_B  2
-#define EN_B  4
-int spL = 0; //сurrent speed of motor (0-225) - PWM range value
+int enl = 7;
+int in3 = 5;
+int in4 = 6;
 
-//initialization
-L298NX2 motors(EN_A, IN1_A, IN2_A, EN_B, IN1_B, IN2_B);
+#define LIMIT 20
+#include <GyverMotor.h>
+GMotor motL (DRIVER3WIRE, in3, in4, enl);
+GMotor motR (DRIVER3WIRE, in1, in2, enr);
 
-//_______communication protocol__________
-#define LEN 2
-#define SIZE 2 * sizeof(int)
-#define R 0
-#define L 1
-int data [LEN];
 
 void setup() {
   Serial.begin(9600);
@@ -47,21 +41,26 @@ void setup() {
   radio.openReadingPipe(1, pipe);
   radio.startListening();
 
-  data[R] = 0;
-  data[L] = 0;
+  //set motor's settings
+  motL.setMode(AUTO);
+  motL.setMinDuty(LIMIT);
 
-  motors.setSpeedA(data[R]);
-  motors.setSpeedB(data[L]);
+  motR.setMode(AUTO);
+  motR.setMinDuty(LIMIT);
 }
 
-void printInfo() {
-  for (int i = 0; i < LEN; i++) {
-    Serial.print(data[i]);
-    Serial.print('\t');
-  }
-  Serial.print('\n');
-  delay(10);
-}
 void loop() {
-  radio.read(&data, SIZE);
+  if (radio.available()) {
+    radio.read(&data, sizeof(data));
+  }
+  spR = (int)data[0];
+  spR = map(spR, 0, 255, -255, 255);
+  if (abs(spR) < LIMIT) spR = 0;
+
+  spL = (int)data[1];
+  spL = map(spL, 0, 255, -255, 255);
+  if (abs(spL) < LIMIT) spL = 0;
+
+  motL.smoothTick(spL);
+  motR.smoothTick(spR);
 }

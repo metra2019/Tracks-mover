@@ -10,20 +10,46 @@ const uint64_t pipe = 0xF0F1F2F3F4L ;  //id
 RF24 radio(RADIO_CE, RADIO_SCN); //initialization
 
 //_____remote control_____
-#define J_R A1 //right joystick`s pin
-#define J_L A0 //left joystick`s pin
+#define J_R A2 //right joystick`s pin
+#define J_L A7 //left joystick`s pin
 
+//_____charge indicator___
+#define DATA 6 //14 - SD
+#define CLOCK 8 //11 - SH_CP
+#define LATCH 7 //12 - ST_CP
 
-#define LEN 2
-#define SIZE 2 * sizeof(int)
-int data [LEN] = {};
-#define R 0
-#define L 1
-int t = 0;
+byte nums[8] = {
+  0b10000000,
+  0b11000000,
+  0b11100000,
+  0b11110000,
+  0b11111000,
+  0b11111100,
+  0b11111110,
+  0b11111111
+};
+
+void setByte(byte value) {
+  digitalWrite(LATCH, LOW); // начинаем передачу данных
+  // устанавливаем нужный байт
+  shiftOut(DATA, CLOCK, LSBFIRST, value);
+  digitalWrite(LATCH, HIGH); // прекращаем передачу данных
+}
+
+//______leds on face____
+#define ON_LED 3
+#define OFF_LED 4
+
+//______recieve_____
+const int s = 2;
+byte data [s] = {};
+int spL, spR;
+
+bool get_data = true;
 
 void setup() {
   Serial.begin(9600);
-
+           
   //radio settings
   radio.begin();
   radio.setChannel(CHANNEL);
@@ -34,27 +60,26 @@ void setup() {
   pinMode(J_R, INPUT);
   pinMode(J_L, INPUT);
 
-  data [R] = 0;
-  data[L] = 0;
-}
 
-void printInfo() {
-  for (int i = 0; i < LEN; i++) {
-    Serial.print(data[i]);
-    Serial.print('\t');
-  }
-  Serial.print('\n');
-  delay(10);
+  pinMode(LATCH, OUTPUT);
+  pinMode(CLOCK, OUTPUT);
+  pinMode(DATA, OUTPUT);
+  digitalWrite(LATCH, LOW);
+
+  pinMode(ON_LED, OUTPUT);
+  pinMode(OFF_LED, OUTPUT);
+
+  digitalWrite(ON_LED, get_data);
 }
 
 void loop() {
-  t = analogRead(J_R);
-  t = map(t, 0, 1023, -255, 255);
-  data[R] = t;
+  spR = analogRead(J_R);
+  spR = map(spR, 0, 1023, 0, 255);
+  data[0] = byte(spR);
 
-  t = analogRead(J_L);
-  t = map(t, 0, 1023, -255, 255);
-  data[L] = t; 
+  spL = analogRead(J_L);
+  spL = map(spL, 0, 1023, 0, 255);
+  data[1] = byte(spL);
 
   radio.write(&data, sizeof(data));
 }
